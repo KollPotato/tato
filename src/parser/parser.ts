@@ -269,9 +269,7 @@ export class Parser {
     }
 
     #parseStatement(): ExpressionStatementNode | IfStatementNode | null {
-        while (this.#tokenStream.peek()?.type === "NEWLINE") {
-            this.#tokenStream.next()
-        }
+        this.#tokenStream.skipWhile(token => token.type === "NEWLINE")
 
         return this.#maybeCallExpression(() => {
             const atom = this.#parseAtom()
