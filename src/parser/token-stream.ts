@@ -328,5 +328,17 @@ export class TokenStream implements Stream<Token | null> {
 
         return this.#read()
     }
+
+    public skipWhile(fn: (token: Token) => boolean) {
+        while (true) {
+            const currentToken = this.peek()
+
+            if (currentToken == null || !fn(currentToken)) {
+                break
+            }
+
+            this.next()
+        }
+    }
 }
 
