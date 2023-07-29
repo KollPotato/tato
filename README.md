@@ -6,3 +6,10 @@ Language consists of 3 parts:
 - **Virtual Machine** - executes the given instructions (like LOAD_CONST, LOAD_NAME, SUBTART, etc.).
 - **Parser** - parses human readable code into the AST (abstract syntax tree).
 - **Compiler** - compiles the AST to instructions, which are then executed by the virtual machine.
+
+## CLI
+To run the example program with [Bun](https://bun.sh/) you can use this command:
+
+```
+bun src/cli.ts run examples/hello-world.tato
+```
