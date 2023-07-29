@@ -46,7 +46,7 @@ export class TokenStream implements Stream<Token | null> {
 
         this.#inputStream.next()
 
-        while (this.#inputStream.peek() != null) {
+        while (!this.isEof) {
             const character = this.#inputStream.next()
 
             if (isEscaped) {
@@ -339,6 +339,10 @@ export class TokenStream implements Stream<Token | null> {
 
             this.next()
         }
+    }
+
+    public get isEof(): boolean {
+        return this.peek() == null
     }
 }
 
