@@ -1,43 +1,11 @@
 import { raise } from "../error";
+import { BINARY_OPERATORS, BinaryOperator, COMPARE_OPERATORS, CompareOperator, OPERATOR_PRECEDENCE, Operator } from "../shared/operators";
 import { CallExpressionNode, ExpressionStatementNode, IfStatementNode, Node, NodeType, ProgramNode } from "./nodes";
 import { TokenStream } from "./token-stream";
 import { Token } from "./tokens";
 
 import "@total-typescript/ts-reset"
 
-export const OPERATOR_PRECEDENCE = {
-    "ASSIGN": 1,
-    "LESS": 7,
-    "GREATER": 7,
-    "LESS_OR_EQUAL": 7,
-    "GREATER_OR_EQUAL": 7,
-    "EQUAL": 7,
-    "NOT_EQUAL": 7,
-    "ADD": 10,
-    "SUBTRACT": 10,
-    "MULTIPLY": 20,
-    "DIVIDE": 20,
-    "MODULO": 20,
-    "POWER": 20,
-    "NONE": 0
-} as const satisfies Record<Extract<Token["type"], typeof OPERATORS[number]> | "NONE", number>
-
-export const OPERATORS = [
-    "ASSIGN",
-    "LESS",
-    "GREATER",
-    "LESS_OR_EQUAL",
-    "GREATER_OR_EQUAL",
-    "EQUAL",
-    "NOT_EQUAL",
-    "DIVIDE",
-    "SUBTRACT",
-    "ADD",
-    "MULTIPLY",
-    "DIVIDE",
-    "MODULO",
-    "POWER"
-] as const
 
 export class Parser {
     public constructor(tokenStream: TokenStream) {
@@ -120,19 +88,27 @@ export class Parser {
         return result
     }
 
-    #maybeBinary(left: ExpressionStatementNode, operator: keyof typeof OPERATOR_PRECEDENCE): ExpressionStatementNode {
+    #maybeBinary(left: ExpressionStatementNode, precedence: number): ExpressionStatementNode {
         const token = this.#tokenStream.peek()
         
-        if (token == null || !OPERATORS.includes(token.type)) {
+        if (token == null || (!BINARY_OPERATORS.includes(token.type) && !COMPARE_OPERATORS.includes(token.type))) {
             return left
         }
 
-        const tokenPrecedence = OPERATOR_PRECEDENCE[token.type as keyof typeof OPERATOR_PRECEDENCE]
+        const operator = token.type as BinaryOperator | CompareOperator
 
-        if (tokenPrecedence > OPERATOR_PRECEDENCE[operator]) {
+        const tokenPrecedence = OPERATOR_PRECEDENCE[operator as Operator]
+
+        if (tokenPrecedence > precedence) {
             this.#tokenStream.next()
 
-            const right = this.#maybeBinary(this.#parseAtom()!, token.type as keyof typeof OPERATOR_PRECEDENCE)
+            const maybeLeft = this.#parseAtom()
+
+            if (maybeLeft?.type !== NodeType.ExpressionStatement) {
+                throw new Error("Expression expected")
+            }
+
+            const right = this.#maybeBinary(maybeLeft, OPERATOR_PRECEDENCE[operator])
 
             return this.#maybeBinary({
                 type: NodeType.ExpressionStatement,
@@ -140,19 +116,23 @@ export class Parser {
                     type: NodeType.BinaryExpression,
                     left,
                     right,
-                    operator: token.type as typeof OPERATORS[number]
+                    operator
                 }
-            }, operator);
+            }, precedence);
         }
 
         return left
     }
 
     #parseIfStatement(): IfStatementNode {
-        const test = this.#parseAny()
+        const test = this.#parseStatement()
 
         if (test == null) {
-            throw new Error("no test")
+            throw new Error("No")
+        }
+
+        else if (test.type != NodeType.ExpressionStatement) {
+            throw new Error("Expression expected")
         }
 
         return {
@@ -176,7 +156,7 @@ export class Parser {
 
             else if (this.#is("LEFT_PARENTHESIS")) {
                 this.#skip("LEFT_PARENTHESIS")
-                const expression = this.#parseAny()
+                const expression = this.#parseStatement()
                 this.#skip("RIGHT_PARENTHESIS")
                 return expression
             }
@@ -250,7 +230,19 @@ export class Parser {
                 "LEFT_PARENTHESIS",
                 "RIGHT_PARENTHESIS",
                 "COMMA",
-                () => this.#parseAny()
+                () => {
+                    const statement = this.#parseStatement()
+
+                    if (statement == null) {
+                        return null
+                    }
+
+                    else if (statement?.type != NodeType.ExpressionStatement) {
+                        throw new Error("Expression expected")
+                    }
+
+                    return statement
+                }
             ).filter(Boolean)
         };
     }
@@ -276,7 +268,7 @@ export class Parser {
         return expression
     }
 
-    #parseAny(): ExpressionStatementNode | IfStatementNode | null {
+    #parseStatement(): ExpressionStatementNode | IfStatementNode | null {
         while (this.#tokenStream.peek()?.type === "NEWLINE") {
             this.#tokenStream.next()
         }
@@ -292,7 +284,7 @@ export class Parser {
                 return atom
             }
 
-            return this.#maybeBinary(atom, "NONE")
+            return this.#maybeBinary(atom, 0)
         })
     }
 
@@ -300,7 +292,7 @@ export class Parser {
         const statements: Node[] = []
 
         while (true) {
-            const statement = this.#parseAny()
+            const statement = this.#parseStatement()
 
             if (statement == null) {
                 break
