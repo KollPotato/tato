@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+        "target": "ESNext",
+        "module": "commonjs",
+        "strict": true,
+        "moduleResolution": "Node",
+        "types": ["bun-types"],
+        "paths": {
+            "$vm": ["./src/vm"],
+            "$parser": ["./src/parser"],
+            "$compiler": ["./src/compiler"],
+        }
+    }
+}
