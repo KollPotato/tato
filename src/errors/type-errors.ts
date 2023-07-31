@@ -1,13 +1,18 @@
+import chalk from "chalk"
 import { Operand } from "$vm"
-import { OPERATORS } from "$parser"
-import { createNamespace } from "."
+import { createErrorThrower } from "."
+import { BinaryOperator } from "../shared/operators"
 
 export type TypeErrors = {
-    BinaryOperation: [operand1: Operand, operand2: Operand, operator: typeof OPERATORS[number]]
+    Operation: [operand1: Operand, operand2: Operand, operator: BinaryOperator]
+    NotCallable: [type: string]
 }
 
-export const typeErrors = createNamespace<TypeErrors>("TypeError", {
-    BinaryOperation: (operand1, operand2, operator) => {
-        return `unsupported "${operator}" operation between "${operand1.type}" and "${operand2.type}"`
+export const throwTypeError = createErrorThrower<TypeErrors>("TypeError", {
+    Operation: (operand1, operand2, operator) => {
+        return `unsupported operation ${chalk.greenBright(operator)} between ${chalk.greenBright(operand1.type)} and ${chalk.greenBright(operand2.type)}`
+    },
+    NotCallable: (type) => {
+        return `"${type}" is not callable`
     }
 })

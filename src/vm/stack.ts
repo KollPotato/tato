@@ -1,5 +1,4 @@
-import { raise } from "../error"
-import { virtualMachineErrors } from "../errors/virtual-machine-errors"
+import { throwVirtualMachineError } from "$errors"
 import type { Operand } from "./operands"
 
 export class Stack {
@@ -35,7 +34,7 @@ export class Stack {
 
     public push(operand: Operand): void {
         if (this.#values.length + 1 > this.#size) {
-            virtualMachineErrors.throw("StackOverflow", this.#size)
+            throwVirtualMachineError("StackOverflow", this.#size)
         }
         
         this.#values.push(operand)
@@ -45,7 +44,7 @@ export class Stack {
         const value = this.#values.at(-1)
         
         if (value === undefined) {
-            return virtualMachineErrors.throw("StackUnderflow")
+            return throwVirtualMachineError("StackUnderflow")
         }
         
         return value
@@ -55,7 +54,7 @@ export class Stack {
         const value = this.#values.pop()
         
         if (value === undefined) {
-            return virtualMachineErrors.throw("StackUnderflow")
+            return throwVirtualMachineError("StackUnderflow")
         }
 
         return value

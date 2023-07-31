@@ -1,10 +1,10 @@
-import { createNamespace } from "."
+import { createErrorThrower } from "."
 
 export type NameErrors = {
     UnknownName: [givenName: string, closestMatch: string | null]
 }
 
-export const nameErrors = createNamespace<NameErrors>("NameError", {
+export const throwNameError = createErrorThrower<NameErrors>("NameError", {
     UnknownName: (givenName, closestMatch) => {
         let message = `name "${givenName}" is not defined.`
 

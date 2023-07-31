@@ -1,39 +1,19 @@
-import { OPERATORS } from "../parser/parser"
-import { Operand, NumberOperand, StringOperand } from "./operands"
+import { Operand } from "./operands"
 
 export type Instruction =
     InstructionBuilder<"LOAD_CONST", Operand> |
+    InstructionBuilder<"STORE_NAME", Operand<"string">> |
+    InstructionBuilder<"LOAD_NAME", Operand<"string">> |
     InstructionBuilder<"POP"> |
-    InstructionBuilder<"COPY", NumberOperand> |
-    InstructionBuilder<"DUPLICATE"> |
 
-    InstructionBuilder<"STORE_NAME", StringOperand> |
-    InstructionBuilder<"LOAD_NAME", StringOperand> |
+    InstructionBuilder<"BINARY_OPERATION", Operand<"string">> |
 
-    InstructionBuilder<"BINARY_OPERATION", StringOperand<typeof OPERATORS[number]>> |
-    InstructionBuilder<"COMPARE_OPERATION", StringOperand> |
-
-    InstructionBuilder<"ADD"> |
-    InstructionBuilder<"SUBTRACT"> |
-    InstructionBuilder<"MULTIPLY"> |
-    InstructionBuilder<"DIVIDE"> |
-    InstructionBuilder<"POWER"> |
-    InstructionBuilder<"MODULO"> |
-
-    InstructionBuilder<"ASSIGN"> |
-    InstructionBuilder<"LESS"> |
-    InstructionBuilder<"GREATER"> |
-    InstructionBuilder<"EQUAL"> |
-    InstructionBuilder<"NOT_EQUAL"> |
-    InstructionBuilder<"LESS_OR_EQUAL"> |
-    InstructionBuilder<"GREATER_OR_EQUAL"> |
-
-    InstructionBuilder<"JUMP_IF_TRUE", NumberOperand> |
-    InstructionBuilder<"JUMP_IF_FALSE", NumberOperand> |
+    InstructionBuilder<"JUMP_IF_TRUE", Operand<"number">> |
+    InstructionBuilder<"JUMP_IF_FALSE", Operand<"number">> |
 
     InstructionBuilder<"ECHO"> |
 
-    InstructionBuilder<"CALL_FUNCTION", NumberOperand>
+    InstructionBuilder<"CALL_FUNCTION", Operand<"number">>
 
 
 type InstructionBuilder<TOpcode extends string, TValue extends Operand | undefined = undefined> =

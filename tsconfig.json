@@ -5,10 +5,13 @@
         "strict": true,
         "moduleResolution": "Node",
         "types": ["bun-types"],
+        "noEmit": true,
         "paths": {
             "$vm": ["./src/vm"],
             "$parser": ["./src/parser"],
             "$compiler": ["./src/compiler"],
+            "$errors": ["./src/errors"],
+            "$shared/*": ["./src/shared/*"]
         }
     }
 }

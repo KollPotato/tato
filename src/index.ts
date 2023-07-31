@@ -3,11 +3,8 @@ import { Compiler } from "$compiler"
 import { InputStream, TokenStream, Parser } from "$parser"
 
 const input = `
-println(true == false)
-println(5)
-println(5 == 5)
-println(5 / (5 + 2))
-println(50 % 9)
+println(true == false,)
+
 `
 
 const inputStream = new InputStream(input)

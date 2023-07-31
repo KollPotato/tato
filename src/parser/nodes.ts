@@ -1,4 +1,4 @@
-import { OPERATORS } from "./parser"
+import { Operator } from "../shared/operators"
 
 export const enum NodeType {
     ExpressionStatement = "ExpressionStatement",
@@ -35,7 +35,7 @@ export type BinaryExpressionNode = {
     type: NodeType.BinaryExpression
     left: ExpressionStatementNode
     right: ExpressionStatementNode
-    operator: typeof OPERATORS[number]
+    operator: Operator
 }
 
 export type StringNode = {

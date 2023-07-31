@@ -1,11 +1,10 @@
-import { raise } from "../error";
-import { BINARY_OPERATORS, BinaryOperator, COMPARE_OPERATORS, CompareOperator, OPERATOR_PRECEDENCE, Operator } from "../shared/operators";
+import { throwSyntaxError } from "$errors";
+import { OPERATOR_PRECEDENCE, Operator, isBinaryOperator } from "$shared/operators";
 import { CallExpressionNode, ExpressionStatementNode, IfStatementNode, Node, NodeType, ProgramNode } from "./nodes";
 import { TokenStream } from "./token-stream";
 import { Token } from "./tokens";
 
 import "@total-typescript/ts-reset"
-
 
 export class Parser {
     public constructor(tokenStream: TokenStream) {
@@ -13,27 +12,6 @@ export class Parser {
     }
 
     #tokenStream: TokenStream
-
-    #is(type: Token["type"]): boolean {
-        const token = this.#tokenStream.peek()
-
-        return token != null
-            ? token.type === type
-            : false
-    }
-
-    #eat<T extends Token>(type: T["type"], required: boolean = true): T | null {
-        const token = this.#tokenStream.peek()
-
-        if (token?.type === type && !required) {
-            return this.#tokenStream.next() as T | null
-        }
-
-        return raise({
-            name: "ParserError",
-            message: `Token type ${type} was expected`
-        })
-    }
 
     #skip(type: Token["type"], required: boolean = true): void {
         const token = this.#tokenStream.peek()
@@ -51,20 +29,21 @@ export class Parser {
             return
         }
 
-        raise({
-            name: "ParserError",
-            message: `Token type ${type} was expected`
-        })
+        throwSyntaxError("Expected", type)
     }
 
-    #parseDelimited<T>(start: Token["type"], stop: Token["type"], separator: Token["type"], parser: () => T): T[] {
+    #parseDelimited<T>(
+        start: Token["type"],
+        stop: Token["type"],
+        separator: Token["type"], parser: () => T
+    ): T[] {
         const result: T[] = []
         let isFirst = true
 
         this.#skip(start)
 
         while (this.#tokenStream.peek() != null) {
-            if (this.#is(stop)) {
+            if (this.#tokenStream.peek()?.type === stop) {
                 break
             }
 
@@ -76,7 +55,7 @@ export class Parser {
                 this.#skip(separator)
             }
 
-            if (this.#is(stop)) {
+            if (this.#tokenStream.peek()?.type === stop) {
                 break
             }
 
@@ -91,13 +70,14 @@ export class Parser {
     #maybeBinary(left: ExpressionStatementNode, precedence: number): ExpressionStatementNode {
         const token = this.#tokenStream.peek()
         
-        if (token == null || (!BINARY_OPERATORS.includes(token.type) && !COMPARE_OPERATORS.includes(token.type))) {
+        if (token == null ||
+            token.type !== "STRING" ||
+            (!isBinaryOperator(token.value))
+        ) {
             return left
         }
 
-        const operator = token.type as BinaryOperator | CompareOperator
-
-        const tokenPrecedence = OPERATOR_PRECEDENCE[operator as Operator]
+        const tokenPrecedence = OPERATOR_PRECEDENCE[token.value as Operator]
 
         if (tokenPrecedence > precedence) {
             this.#tokenStream.next()
@@ -108,7 +88,7 @@ export class Parser {
                 throw new Error("Expression expected")
             }
 
-            const right = this.#maybeBinary(maybeLeft, OPERATOR_PRECEDENCE[operator])
+            const right = this.#maybeBinary(maybeLeft, OPERATOR_PRECEDENCE[token.value])
 
             return this.#maybeBinary({
                 type: NodeType.ExpressionStatement,
@@ -116,7 +96,7 @@ export class Parser {
                     type: NodeType.BinaryExpression,
                     left,
                     right,
-                    operator
+                    operator: token.value
                 }
             }, precedence);
         }
@@ -154,7 +134,7 @@ export class Parser {
                 return null
             }
 
-            else if (this.#is("LEFT_PARENTHESIS")) {
+            else if (token.type === "LEFT_PARENTHESIS") {
                 this.#skip("LEFT_PARENTHESIS")
                 const expression = this.#parseStatement()
                 this.#skip("RIGHT_PARENTHESIS")
@@ -215,10 +195,7 @@ export class Parser {
                 }
             }
             
-            return raise({
-                name: "ParserError",
-                message: `Token type "${token.type}" was not expected lol`
-            })
+            return throwSyntaxError("NotExpected", token.type)
         })
     }
 
@@ -258,7 +235,7 @@ export class Parser {
             return expression
         }
 
-        if (this.#is("LEFT_PARENTHESIS")) {
+        if (this.#tokenStream.peek()?.type === "LEFT_PARENTHESIS") {
             return {
                 type: NodeType.ExpressionStatement,
                 expression: this.#parseCallExpression(expression)

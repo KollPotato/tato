@@ -1,7 +1,7 @@
 import { Stream } from "./stream";
 import { Token } from "./tokens";
 import { InputStream } from "./input-stream";
-import { syntaxErrors } from "../errors/syntax-errors";
+import { throwSyntaxError } from "$errors";
 
 export const KEYWORDS = [
     "true",
@@ -37,7 +37,7 @@ export class TokenStream implements Stream<Token | null> {
             return { type: "SEMICOLON", range }
         }
 
-        return syntaxErrors.throw("UnknownCharacter", char.value, range[0])
+        return throwSyntaxError("UnknownCharacter", char.value, range[0])
     }
 
     #readEscaped(end: string): string {
@@ -191,7 +191,7 @@ export class TokenStream implements Stream<Token | null> {
             return { type: "MODULO", range }
         }
 
-        return syntaxErrors.throw("UnknownCharacter", char.value, range[0])
+        return throwSyntaxError("UnknownCharacter", char.value, range[0])
     }
 
     #readIdentifier(): Token {
@@ -251,7 +251,7 @@ export class TokenStream implements Stream<Token | null> {
             }
         }
 
-        return syntaxErrors.throw("UnknownCharacter", character.value, range[0])
+        return throwSyntaxError("UnknownCharacter", character.value, range[0])
     }
 
     #read(): Token | null {
@@ -306,7 +306,7 @@ export class TokenStream implements Stream<Token | null> {
             return this.#readString()
         }
 
-        return syntaxErrors.throw("UnknownCharacter", character.value, range[0])
+        return throwSyntaxError("UnknownCharacter", character.value, range[0])
     }
 
     public peek() {

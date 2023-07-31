@@ -1,7 +1,6 @@
-import { raise } from "../error";
-import { ExpressionStatementNode, IfStatementNode, Node, NodeType, ProgramNode } from "$parser";
-import { Instruction, operands } from "$vm"
-import chalk from "chalk";
+import { BinaryExpressionNode, CallExpressionNode, ExpressionStatementNode, IfStatementNode, Node, NodeType, ProgramNode } from "$parser";
+import { Instruction, Operand } from "$vm"
+import { throwTypeError } from "$errors";
 
 export class Compiler {
     public constructor(program: ProgramNode) {
@@ -12,68 +11,70 @@ export class Compiler {
     #program: ProgramNode
     #index: number
 
+    #compileBinaryExpression(node: BinaryExpressionNode): Instruction[] {
+        const left = this.#compileExpression(node.left)
+        const right = this.#compileExpression(node.right)
+        const operator: Instruction = {
+            opcode: "BINARY_OPERATION",
+            operand: Operand.fromString(node.operator)
+        }
+
+        return [...right, ...left, operator]
+    }
+
+    #compileCallExpression(node: CallExpressionNode): Instruction[] {
+        if (node.callee.type != NodeType.Identifier) {
+            return throwTypeError("NotCallable", node.callee.type)
+        }
+
+        const instructions: Instruction[] = []
+
+        for (const argument of node.args) {
+            instructions.unshift(...this.#compileExpression(argument))
+        }
+
+        this.#index += 2
+
+        return [
+            { opcode: "LOAD_NAME", operand: Operand.fromString(node.callee.name) },
+            ...instructions,
+            { opcode: "CALL_FUNCTION", operand: Operand.fromNumber(node.args.length) }
+        ]
+    }
+
     #compileExpression(node: ExpressionStatementNode): Instruction[] {
         const { expression } = node
 
         if (expression.type === NodeType.String) {
             this.#index += 1
-            return [{ opcode: "LOAD_CONST", operand: operands.string(expression.value) }]
+            return [{ opcode: "LOAD_CONST", operand: Operand.fromString(expression.value) }]
         }
 
         else if (expression.type === NodeType.Boolean) {
             this.#index += 1
-            return [{ opcode: "LOAD_CONST", operand: operands.boolean(expression.value) }]
+            return [{ opcode: "LOAD_CONST", operand: Operand.fromBoolean(expression.value) }]
         }
 
         else if (expression.type === NodeType.Number) {
             this.#index += 1
-            return [{ opcode: "LOAD_CONST", operand: operands.number(expression.value) }]
+            return [{ opcode: "LOAD_CONST", operand: Operand.fromNumber(expression.value) }]
         }
 
         else if (expression.type === NodeType.CallExpression) {
-            if (expression.callee.type != NodeType.Identifier) {
-                return raise({
-                    message: `Type ${expression.callee.type} is not callable`
-                })
-            }
-
-            const instructions: Instruction[] = []
-
-            for (const argument of expression.args) {
-                instructions.unshift(...this.#compileExpression(argument))
-            }
-
-            this.#index += 2
-
-            return [
-                { opcode: "LOAD_NAME", operand: operands.string(expression.callee.name) },
-                ...instructions,
-                { opcode: "CALL_FUNCTION", operand: operands.number(expression.args.length) }
-            ]
+            return this.#compileCallExpression(expression)
         }
 
         else if (expression.type === NodeType.BinaryExpression) {
-            const left = this.#compileExpression(expression.left)
-            const right = this.#compileExpression(expression.right)
-            const operator: Instruction = { opcode: expression.operator }
-
-            return [
-                ...right,
-                ...left,
-                operator,
-            ]
+            return this.#compileBinaryExpression(expression)
         }
 
         else if (expression.type === NodeType.Identifier) {
             return [
-                { opcode: "LOAD_NAME", operand: operands.string(expression.name) }
+                { opcode: "LOAD_NAME", operand: Operand.fromString(expression.name) }
             ]
         }
 
-        return raise({
-            "name": "CompilerError",
-            "message": `Could not compile expression of type "${expression["type"]}"`
-        })
+        throw new Error("Not implemented")
     }
 
     #compileIfStatement(statement: IfStatementNode): Instruction[] {
@@ -85,7 +86,7 @@ export class Compiler {
 
         const instructions: Instruction[] = [
             ...this.#compileExpression(statement.test),
-            { opcode: "JUMP_IF_FALSE", operand: operands.number(this.#index + bodyInstructions.length) },
+            { opcode: "JUMP_IF_FALSE", operand: Operand.fromNumber(this.#index + bodyInstructions.length) },
             ...bodyInstructions
         ]
 
@@ -113,7 +114,7 @@ export class Compiler {
         for (const node of nodes) {
             instructions.push(...this.#compile(node))
         }
-        
+
         return instructions
     }
 }
