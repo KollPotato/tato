@@ -1,76 +1,44 @@
-import chalk from "chalk"
+import { PositionRange } from "./position"
 
 export type Token =
-    TokenBuilder<"STRING", string> |
-    TokenBuilder<"IDENTIFIER", string> |
-    TokenBuilder<"NUMBER", number> |
-    TokenBuilder<"BOOLEAN", boolean> |
-    TokenBuilder<"KEYWORD", string> |
-    TokenBuilder<"KEYWORD", string> |
-    TokenBuilder<"COMMA"> |
-    TokenBuilder<"DOT"> |
-    TokenBuilder<"COLON"> |
-    TokenBuilder<"SEMICOLON"> |
-    TokenBuilder<"ADD"> |
-    TokenBuilder<"ADD_ASSIGNMENT"> |
-    TokenBuilder<"SUBTRACT"> |
-    TokenBuilder<"SUBTRACT_ASSIGNMENT"> |
-    TokenBuilder<"DIVIDE"> |
-    TokenBuilder<"DIVIDE_ASSIGNMENT"> |
-    TokenBuilder<"MULTIPLY"> |
-    TokenBuilder<"MULTIPLY_ASSIGNMENT"> |
-    TokenBuilder<"POWER"> |
-    TokenBuilder<"POWER_ASSIGNMENT"> |
-    TokenBuilder<"NEWLINE"> |
-    TokenBuilder<"ASSIGN"> |
-    TokenBuilder<"LESS_OR_EQUAL"> |
-    TokenBuilder<"GREATER_OR_EQUAL"> |
-    TokenBuilder<"LESS"> |
-    TokenBuilder<"GREATER"> |
-    TokenBuilder<"NOT_EQUAL"> |
-    TokenBuilder<"EQUAL"> |
-    TokenBuilder<"BANG"> |
-    TokenBuilder<"LEFT_PARENTHESIS"> |
-    TokenBuilder<"RIGHT_PARENTHESIS"> |
-    TokenBuilder<"LEFT_CURLY_BRACE"> |
-    TokenBuilder<"RIGHT_CURLY_BRACE"> |
-    TokenBuilder<"LEFT_SQUARED_BRACKET"> |
-    TokenBuilder<"RIGHT_SQUARED_BRACKET"> |
-    TokenBuilder<"MODULO">
+    | TokenBuilder<"IDENTIFIER", string>
+    | TokenBuilder<"KEYWORD", string>
+    | TokenBuilder<"INTEGER", number>
+    | TokenBuilder<"FLOAT", number>
+    | TokenBuilder<"END_OF_LINE", string>
+    | TokenBuilder<"STRING", string>
+    | TokenBuilder<"DOT">
+    | TokenBuilder<"COMMA">
+    | TokenBuilder<"COLON">
+    | TokenBuilder<"SEMICOLON">
+    | TokenBuilder<"ADD">
+    | TokenBuilder<"ADD_ASSIGNMENT">
+    | TokenBuilder<"SUBTRACT">
+    | TokenBuilder<"SUBTRACT_ASSIGNMENT">
+    | TokenBuilder<"MULTIPLY">
+    | TokenBuilder<"MULTIPLY_ASSIGNMENT">
+    | TokenBuilder<"DIVIDE">
+    | TokenBuilder<"DIVIDE_ASSIGNMENT">
+    | TokenBuilder<"POWER">
+    | TokenBuilder<"POWER_ASSIGNMENT">
+    | TokenBuilder<"MODULO">
+    | TokenBuilder<"MODULO_ASSIGNMENT">
+    | TokenBuilder<"BANG">
+    | TokenBuilder<"EQUAL">
+    | TokenBuilder<"ASSIGN">
+    | TokenBuilder<"NOT_EQUAL">
+    | TokenBuilder<"GREATER">
+    | TokenBuilder<"LESS">
+    | TokenBuilder<"GREATER_OR_EQUAL">
+    | TokenBuilder<"LESS_OR_EQUAL">
+    | TokenBuilder<"ARROW">
+    | TokenBuilder<"LEFT_PARENTHESIS">
+    | TokenBuilder<"RIGHT_PARENTHESIS">
+    | TokenBuilder<"LEFT_CURLY_BRACKET">
+    | TokenBuilder<"RIGHT_CURLY_BRACKET">
+    | TokenBuilder<"LEFT_SQUARE_BRACKET">
+    | TokenBuilder<"RIGHT_SQUARE_BRACKET">
 
-
-export type TokenBuilder<TType extends string, TValue extends unknown | undefined = undefined> = TValue extends undefined
-    ? { type: TType, range: LocationRange }
-    : { type: TType, value: TValue, range: LocationRange }
-
-
-export type Location = {
-    offset: number
-    line: number
-    column: number
-}
-
-export type LocationRange = [start: Location, end: Location]
-
-export const locationToString = (location: Location): string => {
-    const { line, column } = location
-
-    return `ln ${line}, col ${column}`
-}
-
-export const tokenToString = (token: Token, withRange: boolean = false): string => {
-    const { range, type } = token
-    
-    const stringifiedRange = `from ${locationToString(range[0])} to ${locationToString(range[1])}`
-    const colorizedType = chalk.magentaBright(type)
-
-    let result = colorizedType
-    
-    if ("value" in token) {
-        result += ` ${chalk.cyanBright(JSON.stringify(token.value))}`
-    }
-
-    return withRange
-        ? result += ` ${stringifiedRange}`
-        : result
-}
+export type TokenBuilder<TType extends string, TValue extends unknown = undefined> = TValue extends undefined
+    ? Readonly<{ type: TType, range: PositionRange }>
+    : Readonly<{ type: TType, value: TValue, range: PositionRange }>

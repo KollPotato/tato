@@ -1,109 +1,108 @@
-import { Stream } from "./stream"
-import { Char } from "./character"
-import { Location, LocationRange } from "./tokens"
-import { copyObject } from "../utils"
+import chalk from "chalk"
+import { Position } from "./position"
 
-export class InputStream implements Stream<Char | null> {
+export class InputStream {
     public constructor(input: string) {
         this.#input = input
-
-        this.#location = {
+        this.#position = {
+            offset: 0,
             line: 1,
             column: 0,
-            offset: 0
-        }
-
-        this.#cachedChars = { }
-    }
-
-    readonly #location: Location
-    readonly #input: string
-    readonly #cachedChars: Record<string, Char>
-
-    public get location(): Location {
-        return this.#location
-    }
-
-    #advanceLocation(char: string) {
-        this.#location.offset += 1
-
-        if (char === "\n") {
-            this.#location.line += 1
-            this.#location.column = 0
-        } else {
-            this.#location.column += 1
         }
     }
 
-    public peek() {
-        const maybeChar = this.#input[this.#location.offset]
+    #input: string
+    readonly #position: Position
 
-        if (maybeChar == null) {
+    public get input(): string {
+        return this.#input
+    }
+
+    public get previousPosition(): Position {
+        const lastCharacter = this.last!
+        return this.#devance(this.#position, lastCharacter)
+    }
+
+    #devance(position: Position, character: string): Position {
+        position.offset -= 1
+
+        if (character === "\n") {
+            position.column = 0
+            position.line -= 1
+            return position
+        }
+
+        position.column -= 1
+
+        return position
+    }
+
+    #advance(character: string) {
+        this.#position.offset += 1
+
+        if (character === "\n") {
+            this.#position.column = 0
+            this.#position.line += 1
+            return
+        }
+
+        this.#position.column += 1
+    }
+    
+    public getLine(index: number): string {
+        const lines = this.#input.split("\n")
+        const line = lines[index - 1]
+
+        if (line === undefined) {
+            throw new Error("unknown line")
+        }
+
+        return line
+    }
+
+    public get position(): Position {
+        return JSON.parse(JSON.stringify(this.#position))
+    }
+
+    public get last(): string | null {
+        const character = this.#input[this.#position.offset]
+        
+        if (character == null) {
+            return null
+        }
+        
+        return character
+    }
+
+    public eat(): string | null {
+        const character = this.last
+
+        if (character == null) {
             return null
         }
 
-        const cachedChar = this.#cachedChars[maybeChar]
+        this.#advance(character)
+        return character
+    }
 
-        if (cachedChar != null) {
-            return cachedChar
+    public skip(): void {
+        this.#advance(this.last!)
+    }
+
+    public debug() {
+        const characterStream = new InputStream(this.#input)
+
+        const characterToString = (character: string): string => {
+            return chalk.greenBright(JSON.stringify(character))
         }
-
-        const char = new Char(maybeChar)
-        this.#cachedChars[maybeChar] = char
-        return char
-    }
-
-    public skip() {
-        this.#advanceLocation(this.peek()!.value)
-    }
-
-    public next() {
-        const char = this.peek()
-
-        if (char == null) {
-            return null
-        }
-
-        this.#advanceLocation(char.value)
-        return char
-    }
-
-    public readWithRange<T>(fn: () => T): [result: T, range: LocationRange] {
-        const start = copyObject(this.#location)
-        const result = fn()
-        const end = copyObject(this.#location)
-
-        return [result, [start, end]]
-    }
-
-    public readWhile(fn: (char: Char) => boolean): [result: string, location: LocationRange] {
-        return this.readWithRange(() => {
-            let result = ""
-
-            while (true) {
-                const character = this.peek()
-
-                if (character == null || !fn(character)) {
-                    break
-                }
-                
-                this.skip()
-                result += character.value
-            }
-
-            return result
-        })
-    }
-
-    public skipWhile(fn: (char: Char) => boolean): void {
-        while (true) {
-            const character = this.peek()
-
-            if (character == null || !fn(character)) {
-                break
-            }
-            
-            this.next()
-        }
+        
+        let index = 1
+        
+        while (characterStream.last != null) {
+            const character = characterStream.eat()!
+    
+            console.log(chalk.gray(`${index}. `.padStart(6, " ")), characterToString(character))
+            index += 1
+        }   
     }
 }

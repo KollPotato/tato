@@ -1,113 +1,124 @@
-import { Stream } from "./stream";
-import { Token } from "./tokens";
+import chalk from "chalk";
+import { raise } from "./errors";
 import { InputStream } from "./input-stream";
-import { throwSyntaxError } from "$errors";
+import { PositionRange } from "./position";
+import { Token } from "./tokens";
+import { KEYWORDS } from "./constants";
+import clone from "clone";
 
-export const KEYWORDS = [
-    "true",
-    "false",
-    "if",
-    "else"
-]
-
-export class TokenStream implements Stream<Token | null> {
+export class TokenStream {
     public constructor(inputStream: InputStream) {
-        this.#inputStream = inputStream
+        this.#inputStream = inputStream;
+        this.#last = null;
     }
 
-    #inputStream: InputStream
-    #currentToken: Token | null = null
+    #inputStream: InputStream;
+    #last: Token | null;
 
-    #readPunctuation(): Token {
-        const [char, range] = this.#inputStream.readWithRange(() => this.#inputStream.next()!)
-
-        if (char.value === ".") {
-            return { type: "DOT", range }
-        }
-
-        else if (char.value === ",") {
-            return { type: "COMMA", range }
-        }
-
-        else if (char.value === ":") {
-            return { type: "COLON", range }
-        }
-
-        else if (char.value === ";") {
-            return { type: "SEMICOLON", range }
-        }
-
-        return throwSyntaxError("UnknownCharacter", char.value, range[0])
+    public get inputStream(): InputStream {
+        return this.#inputStream
     }
 
-    #readEscaped(end: string): string {
-        let isEscaped = false
-        let result = ""
-
-        this.#inputStream.next()
-
-        while (!this.isEof) {
-            const character = this.#inputStream.next()
-
-            if (isEscaped) {
-                result += character
-                isEscaped = false
-            }
-
-            else if (character?.value == "\\") {
-                isEscaped = true
-            }
-
-            else if (character?.value == end) {
-                break
-            }
-
-            else {
-                result += character
-            }
-        }
-
-        return result
+    #isIdentifierStart(character: string): boolean {
+        return "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_".includes(
+            character
+        );
     }
 
-    #readString(): Token {
-        const [value, range] = this.#inputStream.readWithRange(() => {
-            return this.#readEscaped('"')
-        })
-
-        return { type: "STRING", value, range }
+    #isIdentifier(character: string): boolean {
+        return (
+            this.#isIdentifierStart(character) ||
+            "0123456789".includes(character)
+        )
     }
 
-    #readNumber(): Token {
-        let hasDot = false
+    #isEndOfLineStart(character: string): boolean {
+        return character === "\r" || character === "\n"
+    }
 
-        const [value, range] = this.#inputStream.readWhile((char) => {
-            if (char.value != ".") {
-                return char.isDigit
+    #isPunctuation(character: string): boolean {
+        return ".,:;".includes(character)
+    }
+
+    #isOperatorStart(character: string): boolean {
+        return "!=<>+-/*%".includes(character)
+    }
+
+    #isDigit(character: string): boolean {
+        return "0123456789".includes(character);
+    }
+
+    #isBracket(character: string): boolean {
+        return "()[]{}".includes(character)
+    }
+
+    #captureRange<T>(fn: () => T): [result: T, range: PositionRange] {
+        const start = this.#inputStream.position;
+        const result = fn();
+        const end = this.#inputStream.position;
+
+        return [result, [start, end]];
+    }
+
+    #readWhile(
+        predicate: (character: string) => boolean
+    ): [result: string, range: PositionRange] {
+        return this.#captureRange(() => {
+            let result = "";
+
+            while (true) {
+                const character = this.#inputStream.last;
+
+                if (character === null || !predicate(character)) {
+                    break;
+                }
+
+                result += this.#inputStream.eat()!;
             }
 
-            else if (hasDot) {
-                return false
-            }
-
-            hasDot = true
-            return true
+            return result;
         });
+    }
 
-        return {
-            type: "NUMBER",
-            value: Number(value),
-            range
+    #skipWhile(predicate: (character: string) => boolean): void {
+        while (true) {
+            const character = this.#inputStream.last;
+
+            if (character === null || !predicate(character)) {
+                break;
+            }
+
+            this.#inputStream.skip();
         }
+    }
+
+    #readBracket(): Token {
+        const [value, range] = this.#captureRange(() => this.#inputStream.eat()!)
+
+        if (value === "(") {
+            return { type: "LEFT_PARENTHESIS", range }
+        } else if (value === ")") {
+            return { type: "RIGHT_PARENTHESIS", range }
+        } else if (value === "{") {
+            return { type: "LEFT_CURLY_BRACKET", range }
+        } else if (value === "}") {
+            return { type: "RIGHT_CURLY_BRACKET", range }
+        } else if (value === "[") {
+            return { type: "LEFT_SQUARE_BRACKET", range }
+        } else if (value === "]") {
+            return { type: "RIGHT_SQUARE_BRACKET", range }
+        }
+
+        throw new Error(`${JSON.stringify(value)} was unexpected`)
     }
 
     #readOperator(): Token {
-        const [char, range] = this.#inputStream.readWithRange(() => this.#inputStream.next()!)
+        const [character, range] = this.#captureRange(() => this.#inputStream.eat()!)
 
-        const next = this.#inputStream.peek()
+        const next = this.#inputStream.last
 
-        if (char.value == "!") {
-            if (next?.value === "=") {
+        if (character == "!") {
+            if (next === "=") {
                 this.#inputStream.skip()
                 return { type: "NOT_EQUAL", range }
             }
@@ -115,8 +126,8 @@ export class TokenStream implements Stream<Token | null> {
             return { type: "BANG", range }
         }
 
-        else if (char.value == "=") {
-            if (next?.value === "=") {
+        else if (character == "=") {
+            if (next === "=") {
                 this.#inputStream.skip()
                 return { type: "EQUAL", range }
             }
@@ -124,8 +135,8 @@ export class TokenStream implements Stream<Token | null> {
             return { type: "ASSIGN", range }
         }
 
-        else if (char.value == ">") {
-            if (next?.value === "=") {
+        else if (character == ">") {
+            if (next === "=") {
                 this.#inputStream.skip()
                 return { type: "GREATER_OR_EQUAL", range }
             }
@@ -133,8 +144,8 @@ export class TokenStream implements Stream<Token | null> {
             return { type: "GREATER", range }
         }
 
-        else if (char.value == "<") {
-            if (next?.value === "=") {
+        else if (character == "<") {
+            if (next === "=") {
                 this.#inputStream.skip()
                 return { type: "LESS_OR_EQUAL", range }
             }
@@ -142,8 +153,8 @@ export class TokenStream implements Stream<Token | null> {
             return { type: "LESS", range }
         }
 
-        else if (char.value == "+") {
-            if (next?.value === "=") {
+        else if (character == "+") {
+            if (next === "=") {
                 this.#inputStream.skip()
                 return { type: "ADD_ASSIGNMENT", range }
             }
@@ -151,198 +162,271 @@ export class TokenStream implements Stream<Token | null> {
             return { type: "ADD", range }
         }
 
-        else if (char.value == "-") {
-            if (next?.value === "=") {
+        else if (character == "-") {
+            if (next === "=") {
                 this.#inputStream.skip()
                 return { type: "SUBTRACT_ASSIGNMENT", range }
+            }
+
+            else if (next === ">") {
+                this.#inputStream.skip()
+                return { type: "ARROW", range }
             }
 
             return { type: "SUBTRACT", range }
         }
 
-        else if (char.value == "*") {
-            if (next?.value === "*") {
+        else if (character == "*") {
+            if (next === "*") {
                 this.#inputStream.skip()
-                const next2 = this.#inputStream.next()
-                
-                if (next2?.value === "=") {
+                const next2 = this.#inputStream.eat()
+
+                if (next2 === "=") {
                     return { type: "POWER_ASSIGNMENT", range }
                 }
 
                 return { type: "POWER", range }
 
-            } else if (next?.value === "=") {
+            } else if (next === "=") {
                 return { type: "MULTIPLY_ASSIGNMENT", range }
             }
 
             return { type: "MULTIPLY", range }
         }
 
-        else if (char.value == "/") {
-            if (next?.value === "=") {
+        else if (character == "/") {
+            if (next === "=") {
                 this.#inputStream.skip()
                 return { type: "DIVIDE_ASSIGNMENT", range }
             }
 
             return { type: "DIVIDE", range }
         }
-        
-        else if (char.value === "%") {
+
+        else if (character === "%") {
             return { type: "MODULO", range }
         }
 
-        return throwSyntaxError("UnknownCharacter", char.value, range[0])
+        throw new Error(`${JSON.stringify(character)} was unexpected`)
+    }
+
+    #readPunctuation(): Token {
+        const [value, range] = this.#captureRange(() => this.#inputStream.eat()!)
+
+        if (value === ".") {
+            return { type: "DOT", range }
+        } else if (value === ":") {
+            return { type: "COLON", range }
+        } else if (value === ";") {
+            return { type: "SEMICOLON", range }
+        } else if (value === ",") {
+            return { type: "COMMA", range }
+        }
+
+        throw new Error(`${JSON.stringify(value)} was unexpected`)
     }
 
     #readIdentifier(): Token {
-        const [value, range] = this.#inputStream.readWhile(character => character.isIdentifier)
+        const [identifier, range] = this.#readWhile((character) =>
+            this.#isIdentifier(character)
+        );
 
         return {
-            type: KEYWORDS.includes(value) ? "KEYWORD" : "IDENTIFIER",
-            value,
-            range
-        }
+            type: KEYWORDS.includes(identifier as typeof KEYWORDS[number]) ? "KEYWORD" : "IDENTIFIER",
+            value: identifier,
+            range,
+        };
     }
 
-    #readBracket(): Token {
-        const [character, range] = this.#inputStream.readWithRange(() => {
-            return this.#inputStream.next()!
+    #readEndOfLine(): Token {
+        const [character, [start]] = this.#captureRange(
+            () => this.#inputStream.last
+        );
+
+        if (character === "\r") {
+            this.#inputStream.skip();
+
+            if (this.#inputStream.last === "\n") {
+                this.#inputStream.skip();
+                return {
+                    type: "END_OF_LINE",
+                    value: "\r\n",
+                    range: [start, this.#inputStream.position],
+                }
+            }
+
+            return {
+                type: "END_OF_LINE",
+                value: "\r",
+                range: [start, this.#inputStream.position],
+            }
+        }
+
+        else if (character === "\n") {
+            this.#inputStream.skip();
+            return {
+                type: "END_OF_LINE",
+                value: "\n",
+                range: [start, this.#inputStream.position]
+            };
+        }
+
+        return raise({
+            filename: "<input>",
+            error: `unexpected character ${JSON.stringify(character)}`,
+            inputStream: this.#inputStream,
+            range: [start, start]
+        })
+    }
+
+    #readEscaped(end: string): [result: string, hasEnded: boolean, range: PositionRange] {
+        const [[result, hasEnded], range] = this.#captureRange(() => {
+            let isEscaped = false
+            let hasEnded = false
+
+            let result = ""
+
+            this.#inputStream.skip()
+
+            while (this.#inputStream.last != null) {
+                const character = this.#inputStream.eat()
+
+                if (isEscaped) {
+                    result += character
+                    isEscaped = false
+                }
+
+                else if (character == "\\") {
+                    isEscaped = true
+                }
+
+                else if (character == end) {
+                    hasEnded = true
+                    break
+                }
+
+                else {
+                    result += character
+                }
+            }
+
+            return [result, hasEnded]
         })
 
-        if (character.value === "(") {
-            return {
-                type: "LEFT_PARENTHESIS",
-                range
-            }
+        return [result, hasEnded, range]
+    }
+
+    #readString(): Token {
+        const [value, hasEnded, range] = this.#readEscaped('"')
+
+        if (hasEnded) {
+            return { type: "STRING", value, range };
         }
 
-        else if (character.value === ")") {
-            return {
-                type: "RIGHT_PARENTHESIS",
-                range
-            }
-        }
+        return raise({
+            filename: "<input>",
+            error: `string was never closed. Perhaps you forgot the double quotation mark?`,
+            range: [range[0], range[0]],
+            inputStream: this.#inputStream,
+        })
+    }
 
-        else if (character.value === "{") {
-            return {
-                type: "LEFT_CURLY_BRACE",
-                range
-            }
-        }
+    #readNumber(): Token {
+        let hasDot = false;
 
-        else if (character.value === "}") {
-            return {
-                type: "RIGHT_CURLY_BRACE",
-                range
+        const [value, range] = this.#readWhile((character) => {
+            if (character === ".") {
+                hasDot = true;
+                return true;
             }
-        }
 
-        else if (character.value === "[") {
-            return {
-                type: "LEFT_SQUARED_BRACKET",
-                range
-            }
-        }
+            return this.#isDigit(character);
+        });
 
-        else if (character.value === "]") {
-            return {
-                type: "RIGHT_SQUARED_BRACKET",
-                range
-            }
-        }
-
-        return throwSyntaxError("UnknownCharacter", character.value, range[0])
+        return hasDot
+            ? { type: "FLOAT", value: parseFloat(value), range }
+            : { type: "INTEGER", value: parseInt(value), range }
     }
 
     #read(): Token | null {
-        this.#inputStream.skipWhile(character => character.isWhitespace)
+        this.#skipWhile((character) => character === " " || character === "\t");
 
-        const [character, range] = this.#inputStream.readWithRange(() => {
-            return this.#inputStream.peek()
-        })
+        const [character, range] = this.#captureRange(() => this.#inputStream.last)
 
-        if (character == null) {
+        if (character === null) {
             return null
         }
 
-        else if (character.isIdentifierStart) {
+        else if (this.#isEndOfLineStart(character)) {
+            return this.#readEndOfLine()
+        }
+
+        else if (this.#isIdentifierStart(character)) {
             return this.#readIdentifier()
         }
 
-        else if (character.isPunctuation) {
-            return this.#readPunctuation()
-        }
-
-        else if (character.isDigit) {
+        else if (this.#isDigit(character)) {
             return this.#readNumber()
         }
 
-        // TODO: split tokenizing new line in a method
-        else if (character.value === "\r") {
-            this.#inputStream.skip()
-            const next = this.#inputStream.next()
-
-            if (next?.value === "\n") {
-                return { type: "NEWLINE", range }
-            }
-
-            return { type: "NEWLINE", range }
+        else if (this.#isPunctuation(character)) {
+            return this.#readPunctuation()
         }
 
-        else if (character.value === "\n") {
-            this.#inputStream.skip()
-            return { type: "NEWLINE", range }
-        }
-
-        else if (character.isOperatorStart) {
-            return this.#readOperator()
-        }
-
-        else if (character.isBracket) {
+        else if (this.#isBracket(character)) {
             return this.#readBracket()
         }
 
-        else if (character.value === '"') {
+        else if (this.#isOperatorStart(character)) {
+            return this.#readOperator()
+        }
+
+        else if (character === '"') {
             return this.#readString()
         }
 
-        return throwSyntaxError("UnknownCharacter", character.value, range[0])
+        return raise({
+            filename: "<input>",
+            error: `unexpected character ${JSON.stringify(character)}`,
+            inputStream: this.#inputStream,
+            range
+        })
     }
 
-    public peek() {
-        if (this.#currentToken != null) {
-            return this.#currentToken
+    public get last(): Token | null {
+        if (this.#last != null) {
+            return this.#last;
         }
 
-        this.#currentToken = this.#read()
-        return this.#currentToken
+        this.#last = this.#read();
+        return this.#last;
     }
 
-    public next() {
-        const currentToken = this.#currentToken
-        this.#currentToken = null
+    public eat(): Token | null {
+        const lastToken = this.#last;
+        this.#last = null;
 
-        if (currentToken != null) {
-            return currentToken
+        if (lastToken != null) {
+            return lastToken;
         }
 
-        return this.#read()
+        return this.#read();
     }
 
-    public skipWhile(fn: (token: Token) => boolean) {
-        while (true) {
-            const currentToken = this.peek()
+    public debug() {
+        const tokenStream = new TokenStream(new InputStream(this.#inputStream.input))
 
-            if (currentToken == null || !fn(currentToken)) {
-                break
-            }
-
-            this.next()
+        const tokenToString = (token: Token): string => {
+            return `${chalk.magentaBright(token.type.padEnd(24, " "))} ${"value" in token ? chalk.greenBright(JSON.stringify(token.value)) : ""}`
         }
-    }
 
-    public get isEof(): boolean {
-        return this.peek() == null
+        let index = 1
+
+        while (tokenStream.last != null) {
+            const token = tokenStream.eat()!
+
+            console.log(chalk.gray(`${index}.`.padStart(6, " ")), tokenToString(token))
+            index += 1
+        }
     }
 }
-

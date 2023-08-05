@@ -1,71 +1,115 @@
-import { Operator } from "../shared/operators"
-
-export const enum NodeType {
-    ExpressionStatement = "ExpressionStatement",
-    CallExpression = "CallExpression",
-    BinaryExpression = "BinaryExpression",
-    String = "String",
-    Number = "Number",
-    Identifier = "Identifier",
-    Boolean = "Boolean",
-    Program = "Program",
-    IfStatement = "IfStatement",
-    BlockStatement = "BlockStatement"
-}
-
-export type Node = ExpressionStatementNode | IfStatementNode
-
-export type ExpressionStatementNode = {
-    type: NodeType.ExpressionStatement
-    expression: CallExpressionNode | BinaryExpressionNode | IdentiferNode | StringNode | NumberNode | BooleanNode
-}
-
-export type CallExpressionNode = {
-    type: NodeType.CallExpression
-    callee: ExpressionStatementNode["expression"]
-    args: ExpressionStatementNode[]
-}
-
-export type IdentiferNode = {
-    type: NodeType.Identifier
-    name: string
-}
-
-export type BinaryExpressionNode = {
-    type: NodeType.BinaryExpression
-    left: ExpressionStatementNode
-    right: ExpressionStatementNode
-    operator: Operator
-}
-
-export type StringNode = {
-    type: NodeType.String
-    value: string
-}
-
-export type NumberNode = {
-    type: NodeType.Number
-    value: number
-}
-
-export type BooleanNode = {
-    type: NodeType.Boolean
-    value: boolean
-}
-
 export type ProgramNode = {
-    type: NodeType.Program
-    body: BlockStatementNode
+    readonly type: "Program"
+    readonly body: Statement[]
 }
+
+/* ----- Statements -----  */
+
+export type Statement =
+    | ExpressionStatementNode
+    | FunctionDeclarationNode
+    | VariableDeclarationNode
+    | BlockStatementNode
+    | IfStatementNode
 
 export type BlockStatementNode = {
-    type: NodeType.BlockStatement
-    body: Node[]
+    readonly type: "BlockStatement"
+    readonly body: Statement[]
+}
+
+export type ExpressionStatementNode = {
+    readonly type: "ExpressionStatement"
+    readonly expression: Expression
+}
+
+export type FunctionDeclarationNode = {
+    readonly type: "FunctionDeclaration"
+    readonly identifier: IdentifierNode
+    readonly params: IdentifierNode[]
+    readonly body: BlockStatementNode | ExpressionStatementNode
+}
+
+export type VariableDeclarationNode = {
+    readonly type: "VariableDeclaration"
+    readonly identifier: IdentifierNode
+    readonly value: ExpressionStatementNode
+    readonly kind: "val" | "mut"
 }
 
 export type IfStatementNode = {
-    type: NodeType.IfStatement
-    test: ExpressionStatementNode
-    body: BlockStatementNode
-    else: BlockStatementNode | null
+    readonly type: "IfStatement"
+    readonly test: ExpressionStatementNode
+    readonly then: BlockStatementNode
+    readonly else: BlockStatementNode | IfStatementNode | null
+}
+
+/* ----- Expressions -----  */
+
+export type Expression =
+    | IdentifierNode
+    | StringNode
+    | IntegerNode
+    | BooleanNode
+    | FloatNode
+    | CallExpressionNode
+    | BinaryExpressionNode
+
+export type IdentifierNode = {
+    readonly type: "Identifier"
+    readonly name: string
+}
+
+export type StringNode = {
+    readonly type: "String"
+    readonly value: string
+}
+
+export type IntegerNode = {
+    readonly type: "Integer"
+    readonly value: number
+}
+
+export type FloatNode = {
+    readonly type: "Float"
+    readonly value: number
+}
+
+export type BooleanNode = {
+    readonly type: "Boolean"
+    readonly value: boolean
+}
+
+export type BinaryExpressionNode = {
+    readonly type: "BinaryExpression"
+    readonly left: Expression
+    readonly right: Expression
+    readonly operator: string
+}
+
+export type CallExpressionNode = {
+    readonly type: "CallExpression"
+    readonly callee: IdentifierNode
+    readonly args: ExpressionStatementNode[]
+}
+
+export type UnaryNode = {
+    readonly type: "Unary"
+    readonly unaryee: IdentifierNode
+    readonly arg: Expression
+}
+
+/* ----- Type Annotations ----- */
+
+export type TypeAnnotation = 
+    | GenericTypeAnnotation
+    | ArrayTypeAnnotation
+
+export type GenericTypeAnnotation = {
+    type: "GenericTypeAnnotation",
+    annotation: IdentifierNode | IntegerNode | FloatNode
+}
+
+export type ArrayTypeAnnotation = {
+    type: "ArrayTypeAnnotation",
+    element: TypeAnnotation
 }
