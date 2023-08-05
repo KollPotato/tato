@@ -4,7 +4,6 @@ import { InputStream } from "./input-stream";
 import { PositionRange } from "./position";
 import { Token } from "./tokens";
 import { KEYWORDS } from "./constants";
-import clone from "clone";
 
 export class TokenStream {
     public constructor(inputStream: InputStream) {
