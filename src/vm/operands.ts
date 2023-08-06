@@ -1,11 +1,16 @@
 import { throwTypeError } from "$errors"
+import chalk from "chalk"
 import { BinaryOperator } from "../shared/operators"
 
 export type OperandsMap = {
     "number": number
     "string": string
     "boolean": boolean
-    "function": (...args: Operand[]) => unknown
+    "none": null
+    "function": {
+        name: string
+        fn: (...args: Operand[]) => Operand
+    }
 }
 
 export class Operand<TType extends keyof OperandsMap = keyof OperandsMap> {
@@ -41,57 +46,118 @@ export class Operand<TType extends keyof OperandsMap = keyof OperandsMap> {
         return this.#type === "function"
     }
 
-    public binary(operand: Operand, operator: BinaryOperator): Operand<"string" | "number"> {
+    public isNone(): this is Operand<"none"> {
+        return this.#type === "none"
+    }
+
+    public binary(operand: Operand, operator: BinaryOperator): Operand {
         if (this.isString() && operand.isString() && operator === "ADD") {
             return new Operand("string", this.#value + operand.value)
         }
 
-        if (!this.isNumber() || !operand.isNumber()) {
-            throwTypeError("Operation", this, operand, operator)
-            throw new Error("")
+        else if (this.isString() && operand.isString()) {
+            if (operator === "EQUAL") {
+                return Operand.fromBoolean(this.#value === operand.value)
+            }
+
+            else if (operator === "NOT_EQUAL") {
+                return Operand.fromBoolean(this.#value !== operand.value)
+            }
         }
 
-        if (operator === "ADD") {
-            return new Operand("number", this.#value + operand.value)
+        else if (this.isBoolean() && operand.isBoolean()) {
+            if (operator === "EQUAL") {
+                return Operand.fromBoolean(this.#value === operand.value)
+            }
+
+            else if (operator === "NOT_EQUAL") {
+                return Operand.fromBoolean(this.#value !== operand.value)
+            }
         }
 
-        else if (operator === "SUBTRACT") {
-            return new Operand("number", this.#value + operand.value)
+        else if (this.isNumber() && operand.isNumber()) {
+            if (operator === "ADD") {
+                return Operand.fromNumber(this.#value + operand.value)
+            }
+    
+            else if (operator === "SUBTRACT") {
+                return Operand.fromNumber(this.#value - operand.value)
+            }
+    
+            else if (operator === "DIVIDE") {
+                return Operand.fromNumber(this.#value / operand.value)
+            }
+    
+            else if (operator === "MODULO") {
+                return Operand.fromNumber(this.#value % operand.value)
+            }
+    
+            else if (operator === "MULTIPLY") {
+                return Operand.fromNumber(this.#value * operand.value)
+            }
+    
+            else if (operator === "EQUAL") {
+                return Operand.fromBoolean(this.#value === operand.value)
+            }
+    
+            else if (operator === "NOT_EQUAL") {
+                return Operand.fromBoolean(this.#value !== operand.value)
+            }
+
+            else if (operator === "GREATER") {
+                return Operand.fromBoolean(this.#value > operand.value)
+            }
+    
+            else if (operator === "LESS") {
+                return Operand.fromBoolean(this.#value < operand.value)
+            }
+
+            else if (operator === "GREATER_OR_EQUAL") {
+                return Operand.fromBoolean(this.#value >= operand.value)
+            }
+    
+            else if (operator === "LESS_OR_EQUAL") {
+                return Operand.fromBoolean(this.#value <= operand.value)
+            }
         }
 
-        else if (operator === "DIVIDE") {
-            return new Operand("number", this.#value + operand.value)
-        }
-
-        else if (operator === "MODULO") {
-            return new Operand("number", this.#value + operand.value)
-        }
-
-        else if (operator === "MULTIPLY") {
-            return new Operand("number", this.#value + operand.value)
-        }
-
-        throw new Error()
+        return throwTypeError("Operation", this, operand, operator)
     }
 
-    public static fromBoolean(boolean: boolean): Operand<"boolean"> {
+    public static fromBoolean(boolean: OperandsMap["boolean"]): Operand<"boolean"> {
         return new Operand("boolean", boolean)
     }
 
-    public static fromString(string: string): Operand<"string"> {
+    public static fromString(string: OperandsMap["string"]): Operand<"string"> {
         return new Operand("string", string)
     }
 
-    public static fromNumber(number: number): Operand<"number"> {
+    public static fromNumber(number: OperandsMap["number"]): Operand<"number"> {
         return new Operand("number", number)
     }
     
-    public static fromFunction(fn: (...args: Operand[]) => unknown): Operand<"function"> {
+    public static fromFunction(fn: OperandsMap["function"]): Operand<"function"> {
         return new Operand("function", fn)
     }
 
+    public static fromNone(): Operand<"none"> {
+        return new Operand("none", null)
+    }
+
     public toString(): string {
-        return `${this.#type} ${this.#value}`
+        if (this.isNumber() || this.isBoolean() || this.isNone()) {
+            return chalk.yellowBright(this.#value)
+        }
+
+        else if (this.isString()) {
+            return chalk.white(this.#value)
+        }
+        
+        else if (this.isFunction()) {
+            return `<function ${this.#value.name}>`
+        }
+
+        throw new Error("How did we get here?")
     }
 
     public [Symbol.toString()](): string {
