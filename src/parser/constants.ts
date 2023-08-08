@@ -8,5 +8,7 @@ export const KEYWORDS = [
     "break",
     "continue",
     "mut",
-    "val"
+    "val",
+    "if",
+    "else",
 ] as const
