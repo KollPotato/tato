@@ -1,34 +1,29 @@
-import chalk from "chalk";
-import { raise } from "./errors";
-import { InputStream } from "./input-stream";
-import { PositionRange } from "./position";
-import { Token } from "./tokens";
-import { KEYWORDS } from "./constants";
+import chalk from "chalk"
+import { raise } from "./errors"
+import { InputStream } from "./input-stream"
+import { PositionRange } from "./position"
+import { Token } from "./tokens"
+import { KEYWORDS } from "./constants"
 
 export class TokenStream {
     public constructor(inputStream: InputStream) {
-        this.#inputStream = inputStream;
-        this.#last = null;
+        this.#inputStream = inputStream
+        this.#last = null
     }
 
-    #inputStream: InputStream;
-    #last: Token | null;
+    #inputStream: InputStream
+    #last: Token | null
 
     public get inputStream(): InputStream {
         return this.#inputStream
     }
 
     #isIdentifierStart(character: string): boolean {
-        return "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_".includes(
-            character
-        );
+        return "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_".includes(character)
     }
 
     #isIdentifier(character: string): boolean {
-        return (
-            this.#isIdentifierStart(character) ||
-            "0123456789".includes(character)
-        )
+        return this.#isIdentifierStart(character) || "0123456789".includes(character)
     }
 
     #isEndOfLineStart(character: string): boolean {
@@ -44,7 +39,7 @@ export class TokenStream {
     }
 
     #isDigit(character: string): boolean {
-        return "0123456789".includes(character);
+        return "0123456789".includes(character)
     }
 
     #isBracket(character: string): boolean {
@@ -52,42 +47,40 @@ export class TokenStream {
     }
 
     #captureRange<T>(fn: () => T): [result: T, range: PositionRange] {
-        const start = this.#inputStream.position;
-        const result = fn();
-        const end = this.#inputStream.position;
+        const start = this.#inputStream.position
+        const result = fn()
+        const end = this.#inputStream.position
 
-        return [result, [start, end]];
+        return [result, [start, end]]
     }
 
-    #readWhile(
-        predicate: (character: string) => boolean
-    ): [result: string, range: PositionRange] {
+    #readWhile(predicate: (character: string) => boolean): [result: string, range: PositionRange] {
         return this.#captureRange(() => {
-            let result = "";
+            let result = ""
 
             while (true) {
-                const character = this.#inputStream.last;
+                const character = this.#inputStream.last
 
                 if (character === null || !predicate(character)) {
-                    break;
+                    break
                 }
 
-                result += this.#inputStream.eat()!;
+                result += this.#inputStream.eat()!
             }
 
-            return result;
-        });
+            return result
+        })
     }
 
     #skipWhile(predicate: (character: string) => boolean): void {
         while (true) {
-            const character = this.#inputStream.last;
+            const character = this.#inputStream.last
 
             if (character === null || !predicate(character)) {
-                break;
+                break
             }
 
-            this.#inputStream.skip();
+            this.#inputStream.skip()
         }
     }
 
@@ -123,59 +116,45 @@ export class TokenStream {
             }
 
             return { type: "BANG", range }
-        }
-
-        else if (character == "=") {
+        } else if (character == "=") {
             if (next === "=") {
                 this.#inputStream.skip()
                 return { type: "EQUAL", range }
             }
 
             return { type: "ASSIGN", range }
-        }
-
-        else if (character == ">") {
+        } else if (character == ">") {
             if (next === "=") {
                 this.#inputStream.skip()
                 return { type: "GREATER_OR_EQUAL", range }
             }
 
             return { type: "GREATER", range }
-        }
-
-        else if (character == "<") {
+        } else if (character == "<") {
             if (next === "=") {
                 this.#inputStream.skip()
                 return { type: "LESS_OR_EQUAL", range }
             }
 
             return { type: "LESS", range }
-        }
-
-        else if (character == "+") {
+        } else if (character == "+") {
             if (next === "=") {
                 this.#inputStream.skip()
                 return { type: "ADD_ASSIGNMENT", range }
             }
 
             return { type: "ADD", range }
-        }
-
-        else if (character == "-") {
+        } else if (character == "-") {
             if (next === "=") {
                 this.#inputStream.skip()
                 return { type: "SUBTRACT_ASSIGNMENT", range }
-            }
-
-            else if (next === ">") {
+            } else if (next === ">") {
                 this.#inputStream.skip()
                 return { type: "ARROW", range }
             }
 
             return { type: "SUBTRACT", range }
-        }
-
-        else if (character == "*") {
+        } else if (character == "*") {
             if (next === "*") {
                 this.#inputStream.skip()
                 const next2 = this.#inputStream.eat()
@@ -185,24 +164,19 @@ export class TokenStream {
                 }
 
                 return { type: "POWER", range }
-
             } else if (next === "=") {
                 return { type: "MULTIPLY_ASSIGNMENT", range }
             }
 
             return { type: "MULTIPLY", range }
-        }
-
-        else if (character == "/") {
+        } else if (character == "/") {
             if (next === "=") {
                 this.#inputStream.skip()
                 return { type: "DIVIDE_ASSIGNMENT", range }
             }
 
             return { type: "DIVIDE", range }
-        }
-
-        else if (character === "%") {
+        } else if (character === "%") {
             return { type: "MODULO", range }
         }
 
@@ -226,48 +200,44 @@ export class TokenStream {
     }
 
     #readIdentifier(): Token {
-        const [identifier, range] = this.#readWhile((character) =>
-            this.#isIdentifier(character)
-        );
+        const [identifier, range] = this.#readWhile((character) => this.#isIdentifier(character))
 
         return {
-            type: KEYWORDS.includes(identifier as typeof KEYWORDS[number]) ? "KEYWORD" : "IDENTIFIER",
+            type: KEYWORDS.includes(identifier as (typeof KEYWORDS)[number])
+                ? "KEYWORD"
+                : "IDENTIFIER",
             value: identifier,
-            range,
-        };
+            range
+        }
     }
 
     #readEndOfLine(): Token {
-        const [character, [start]] = this.#captureRange(
-            () => this.#inputStream.last
-        );
+        const [character, [start]] = this.#captureRange(() => this.#inputStream.last)
 
         if (character === "\r") {
-            this.#inputStream.skip();
+            this.#inputStream.skip()
 
             if (this.#inputStream.last === "\n") {
-                this.#inputStream.skip();
+                this.#inputStream.skip()
                 return {
                     type: "END_OF_LINE",
                     value: "\r\n",
-                    range: [start, this.#inputStream.position],
+                    range: [start, this.#inputStream.position]
                 }
             }
 
             return {
                 type: "END_OF_LINE",
                 value: "\r",
-                range: [start, this.#inputStream.position],
+                range: [start, this.#inputStream.position]
             }
-        }
-
-        else if (character === "\n") {
-            this.#inputStream.skip();
+        } else if (character === "\n") {
+            this.#inputStream.skip()
             return {
                 type: "END_OF_LINE",
                 value: "\n",
                 range: [start, this.#inputStream.position]
-            };
+            }
         }
 
         return raise({
@@ -293,18 +263,12 @@ export class TokenStream {
                 if (isEscaped) {
                     result += character
                     isEscaped = false
-                }
-
-                else if (character == "\\") {
+                } else if (character == "\\") {
                     isEscaped = true
-                }
-
-                else if (character == end) {
+                } else if (character == end) {
                     hasEnded = true
                     break
-                }
-
-                else {
+                } else {
                     result += character
                 }
             }
@@ -319,28 +283,28 @@ export class TokenStream {
         const [value, hasEnded, range] = this.#readEscaped('"')
 
         if (hasEnded) {
-            return { type: "STRING", value, range };
+            return { type: "STRING", value, range }
         }
 
         return raise({
             filename: "<input>",
             error: `string was never closed. Perhaps you forgot the double quotation mark?`,
             range: [range[0], range[0]],
-            inputStream: this.#inputStream,
+            inputStream: this.#inputStream
         })
     }
 
     #readNumber(): Token {
-        let hasDot = false;
+        let hasDot = false
 
         const [value, range] = this.#readWhile((character) => {
             if (character === ".") {
-                hasDot = true;
-                return true;
+                hasDot = true
+                return true
             }
 
-            return this.#isDigit(character);
-        });
+            return this.#isDigit(character)
+        })
 
         return hasDot
             ? { type: "FLOAT", value: parseFloat(value), range }
@@ -348,39 +312,25 @@ export class TokenStream {
     }
 
     #read(): Token | null {
-        this.#skipWhile((character) => character === " " || character === "\t");
+        this.#skipWhile((character) => character === " " || character === "\t")
 
         const [character, range] = this.#captureRange(() => this.#inputStream.last)
 
         if (character === null) {
             return null
-        }
-
-        else if (this.#isEndOfLineStart(character)) {
+        } else if (this.#isEndOfLineStart(character)) {
             return this.#readEndOfLine()
-        }
-
-        else if (this.#isIdentifierStart(character)) {
+        } else if (this.#isIdentifierStart(character)) {
             return this.#readIdentifier()
-        }
-
-        else if (this.#isDigit(character)) {
+        } else if (this.#isDigit(character)) {
             return this.#readNumber()
-        }
-
-        else if (this.#isPunctuation(character)) {
+        } else if (this.#isPunctuation(character)) {
             return this.#readPunctuation()
-        }
-
-        else if (this.#isBracket(character)) {
+        } else if (this.#isBracket(character)) {
             return this.#readBracket()
-        }
-
-        else if (this.#isOperatorStart(character)) {
+        } else if (this.#isOperatorStart(character)) {
             return this.#readOperator()
-        }
-
-        else if (character === '"') {
+        } else if (character === '"') {
             return this.#readString()
         }
 
@@ -394,29 +344,31 @@ export class TokenStream {
 
     public get last(): Token | null {
         if (this.#last != null) {
-            return this.#last;
+            return this.#last
         }
 
-        this.#last = this.#read();
-        return this.#last;
+        this.#last = this.#read()
+        return this.#last
     }
 
     public eat(): Token | null {
-        const lastToken = this.#last;
-        this.#last = null;
+        const lastToken = this.#last
+        this.#last = null
 
         if (lastToken != null) {
-            return lastToken;
+            return lastToken
         }
 
-        return this.#read();
+        return this.#read()
     }
 
     public debug() {
         const tokenStream = new TokenStream(new InputStream(this.#inputStream.input))
 
         const tokenToString = (token: Token): string => {
-            return `${chalk.magentaBright(token.type.padEnd(24, " "))} ${"value" in token ? chalk.greenBright(JSON.stringify(token.value)) : ""}`
+            return `${chalk.magentaBright(token.type.padEnd(24, " "))} ${
+                "value" in token ? chalk.greenBright(JSON.stringify(token.value)) : ""
+            }`
         }
 
         let index = 1
