@@ -53,6 +53,7 @@ export type Expression =
     | FloatNode
     | CallExpressionNode
     | BinaryExpressionNode
+    | UnaryExpressionNode
 
 export type IdentifierNode = {
     readonly type: "Identifier"
@@ -92,10 +93,10 @@ export type CallExpressionNode = {
     readonly args: ExpressionStatementNode[]
 }
 
-export type UnaryNode = {
-    readonly type: "Unary"
-    readonly unaryee: IdentifierNode
-    readonly arg: Expression
+export type UnaryExpressionNode = {
+    readonly type: "UnaryExpression"
+    readonly operator: string
+    readonly expression: Expression
 }
 
 /* ----- Type Annotations ----- */
