@@ -44,13 +44,13 @@ export class VirtualMachine {
 
     #binaryOperation(operator: Operand<"string">) {
         if (!operator.isString() || !isBinaryOperator(operator.value)) {
-            throw new Error("")
+            throw new Error(`Invalid operator: ${operator.value}`)
         }
 
         const v1 = this.#stack.pop()
         const v2 = this.#stack.pop()
 
-        return v1.binary(v2, operator.value)
+        this.#stack.push(v1.binary(v2, operator.value))
     }
 
     #loadName(operand: Operand<"string">): void {
@@ -78,33 +78,6 @@ export class VirtualMachine {
             return
         }
 
-        else if (opcode === "JUMP_IF_TRUE") {
-            const v1 = this.#stack.last()
-
-            if (v1.isBoolean() && v1.value) {
-                this.#programCounter = instruction.operand.value
-            }
-
-            return
-        }
-
-        else if (opcode === "JUMP_IF_FALSE") {
-            const v1 = this.#stack.last()
-
-            if (v1.isBoolean() && !v1.value) {
-                this.#programCounter = instruction.operand.value
-            }
-
-            return
-        }
-
-        else if (opcode === "ECHO") {
-            const v1 = this.#stack.last()
-            console.log(`${chalk.greenBright(v1.type)}(${chalk.yellowBright(v1.value)})`)
-
-            return
-        }
-
         else if (opcode === "LOAD_NAME") {
             this.#loadName(instruction.operand)
             return
@@ -117,23 +90,57 @@ export class VirtualMachine {
                 args.push(this.stack.pop())
             }
 
-            const fn = this.stack.pop()
+            const operand = this.stack.pop()
 
-            if (!fn.isFunction()) {
-                return throwTypeError("NotCallable", fn.type)
+            if (!operand.isFunction()) {
+                return throwTypeError("NotCallable", operand.type)
             }
 
-            fn.value(...args)
+            operand.value.fn(...args)
 
             return
         }
 
         else if (opcode === "BINARY_OPERATION") {
-            if (!instruction.operand.isString()) {
-                throw new Error()
-            }
-            
             this.#binaryOperation(instruction.operand)
+            return
+        }
+
+        else if (opcode === "POP_JUMP_FORWARD_IF_TRUE") {
+            const tos = this.#stack.last()
+
+            if (tos.isBoolean() && tos.value) {
+                this.#stack.pop()
+                this.#programCounter += instruction.operand.value
+            }
+
+            return
+        }
+
+        else if (opcode === "POP_JUMP_FORWARD_IF_FALSE") {
+            const tos = this.#stack.last()
+
+            if (tos.isBoolean() && !tos.value) {
+                this.#stack.pop()
+                this.#programCounter += instruction.operand.value
+            }
+
+            return
+        }
+
+        else if (opcode === "JUMP_FORWARD") {
+            this.#programCounter += instruction.operand.value
+
+            return
+        }
+
+        else if (opcode === "UNARY_OPERATION") {
+            const tos = this.#stack.pop()
+
+            if (instruction.operand.value === "BANG" && tos.isBoolean()) {
+                this.#stack.push(Operand.fromBoolean(!tos.value))
+            }
+
             return
         }
 
