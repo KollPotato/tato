@@ -1,5 +1,5 @@
 import { raise } from "./errors";
-import { BlockStatementNode, CallExpressionNode, Expression, ExpressionStatementNode, FloatNode, FunctionDeclarationNode, IdentifierNode, IntegerNode, ProgramNode, Statement, StringNode, VariableDeclarationNode } from "./nodes";
+import { BlockStatementNode, BooleanNode, CallExpressionNode, Expression, ExpressionStatementNode, FloatNode, FunctionDeclarationNode, IdentifierNode, IfStatementNode, IntegerNode, ProgramNode, Statement, StringNode, UnaryExpressionNode, VariableDeclarationNode } from "./nodes";
 import { OPERATOR_PRECEDENCE, isBinaryOperator } from "./operators";
 import { TokenStream } from "./token-stream";
 import { Token } from "./tokens";
@@ -59,6 +59,35 @@ export class Parser {
         }
     }
 
+    #parseIfStatement(): IfStatementNode {
+        this.#skip("KEYWORD")
+
+        const test = this.#parseExpressionStatement()
+        const body = this.#parseBlockStatement()
+
+        const maybeElse = this.#tokenStream.last
+
+        if (maybeElse?.type === "KEYWORD" && maybeElse.value === "else") {
+            this.#tokenStream.eat()
+
+            const else_ = this.#parseBlockStatement()
+
+            return {
+                type: "IfStatement",
+                test,
+                then: body,
+                else: else_
+            }
+        }
+
+        return {
+            type: "IfStatement",
+            test,
+            then: body,
+            else: null,
+        }
+    }
+
     #parseExpression(): Expression {
         return this.#maybeCallExpression(() => {
             
@@ -76,7 +105,11 @@ export class Parser {
                 throw new Error(`expression was expected`)
             }
 
-            if (token.type === "IDENTIFIER") {
+            else if (token.type === "BANG") {
+                return this.#parseUnaryExpression(token)
+            }
+
+            else if (token.type === "IDENTIFIER") {
                 return {
                     type: "Identifier",
                     name: token.value
@@ -102,6 +135,13 @@ export class Parser {
                     type: "String",
                     value: token.value
                 } satisfies StringNode
+            }
+
+            else if (token.type === "KEYWORD" && (token.value === "true" || token.value === "false")) {
+                return {
+                    type: "Boolean",
+                    value: token.value === "true"
+                } satisfies BooleanNode
             }
 
             else if (token.type === "LEFT_PARENTHESIS") {
@@ -238,6 +278,20 @@ export class Parser {
         return left
     }
 
+    #parseUnaryExpression(operator: Token): UnaryExpressionNode {
+        if (operator.type === "BANG") {
+            const expression = this.#parseExpression()
+
+            return {
+                type: "UnaryExpression",
+                operator: "BANG",
+                expression
+            }
+        }
+
+        throw new Error("wuu")
+    }
+
     #parseExpressionStatement(): ExpressionStatementNode {
         return {
             type: "ExpressionStatement",
@@ -308,7 +362,9 @@ export class Parser {
         else if (
             token.type === "IDENTIFIER" ||
             token.type === "INTEGER" ||
-            token.type === "FLOAT"
+            token.type === "FLOAT" ||
+            token.type === "BANG" ||
+            (token.type === "KEYWORD" && (token.value === "true" || token.value === "false"))
         ) {
             return this.#parseExpressionStatement()
         }
@@ -325,6 +381,13 @@ export class Parser {
             (token.value === "val" || token.value === "mut")
         ) {
             return this.#parseVariableDeclaration(token.value)
+        }
+
+        else if (
+            token.type === "KEYWORD" &&
+            token.value === "if"
+        ) {
+            return this.#parseIfStatement()
         }
 
         return null
