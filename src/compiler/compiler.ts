@@ -1,19 +1,18 @@
-import { BinaryExpressionNode, CallExpressionNode, ExpressionStatementNode, IfStatementNode, Node, NodeType, ProgramNode } from "$parser";
+import { BinaryExpressionNode, BlockStatementNode, CallExpressionNode, Expression, ExpressionStatementNode, IfStatementNode, ProgramNode, Statement } from "../parser";
 import { Instruction, Operand } from "$vm"
 import { throwTypeError } from "$errors";
 
 export class Compiler {
     public constructor(program: ProgramNode) {
         this.#program = program
-        this.#index = 0
     }
 
     #program: ProgramNode
-    #index: number
 
     #compileBinaryExpression(node: BinaryExpressionNode): Instruction[] {
         const left = this.#compileExpression(node.left)
         const right = this.#compileExpression(node.right)
+
         const operator: Instruction = {
             opcode: "BINARY_OPERATION",
             operand: Operand.fromString(node.operator)
@@ -23,17 +22,15 @@ export class Compiler {
     }
 
     #compileCallExpression(node: CallExpressionNode): Instruction[] {
-        if (node.callee.type != NodeType.Identifier) {
+        if (node.callee.type != "Identifier") {
             return throwTypeError("NotCallable", node.callee.type)
         }
 
         const instructions: Instruction[] = []
 
         for (const argument of node.args) {
-            instructions.unshift(...this.#compileExpression(argument))
+            instructions.unshift(...this.#compileExpression(argument.expression))
         }
-
-        this.#index += 2
 
         return [
             { opcode: "LOAD_NAME", operand: Operand.fromString(node.callee.name) },
@@ -42,77 +39,92 @@ export class Compiler {
         ]
     }
 
-    #compileExpression(node: ExpressionStatementNode): Instruction[] {
-        const { expression } = node
-
-        if (expression.type === NodeType.String) {
-            this.#index += 1
-            return [{ opcode: "LOAD_CONST", operand: Operand.fromString(expression.value) }]
+    #compileExpression(expression: Expression): Instruction[] {
+        if (expression.type === "String") {
+            return [{
+                opcode: "LOAD_CONST",
+                operand: Operand.fromString(expression.value)
+            }]
         }
 
-        else if (expression.type === NodeType.Boolean) {
-            this.#index += 1
-            return [{ opcode: "LOAD_CONST", operand: Operand.fromBoolean(expression.value) }]
+        else if (expression.type === "Boolean") {
+            return [{
+                opcode: "LOAD_CONST",
+                operand: Operand.fromBoolean(expression.value)
+            }]
         }
 
-        else if (expression.type === NodeType.Number) {
-            this.#index += 1
-            return [{ opcode: "LOAD_CONST", operand: Operand.fromNumber(expression.value) }]
+        else if (expression.type === "Integer" || expression.type === "Float") {
+            return [{
+                opcode: "LOAD_CONST",
+                operand: Operand.fromNumber(expression.value)
+            }]
         }
 
-        else if (expression.type === NodeType.CallExpression) {
+        else if (expression.type === "CallExpression") {
             return this.#compileCallExpression(expression)
         }
 
-        else if (expression.type === NodeType.BinaryExpression) {
+        else if (expression.type === "BinaryExpression") {
             return this.#compileBinaryExpression(expression)
         }
 
-        else if (expression.type === NodeType.Identifier) {
+        else if (expression.type === "Identifier") {
             return [
                 { opcode: "LOAD_NAME", operand: Operand.fromString(expression.name) }
             ]
         }
 
-        throw new Error("Not implemented")
+        else if (expression.type === "UnaryExpression") {
+            return [
+                ...this.#compileExpression(expression.expression),
+                { opcode: "UNARY_OPERATION", operand: Operand.fromString(expression.operator) }
+            ]
+        }
+
+        throw new Error("not implemented")
+    }
+
+    #compileBlockStatement(statement: BlockStatementNode): Instruction[] {
+        return statement.body.map((statement) => this.#compileStatement(statement)).flat()
     }
 
     #compileIfStatement(statement: IfStatementNode): Instruction[] {
-        const bodyInstructions: Instruction[] = statement
-            .body
-            .body
-            .map(node => this.#compile(node))
-            .flat()
+        const then = this.#compileBlockStatement(statement.then)
+        const else_ = []
 
-        const instructions: Instruction[] = [
-            ...this.#compileExpression(statement.test),
-            { opcode: "JUMP_IF_FALSE", operand: Operand.fromNumber(this.#index + bodyInstructions.length) },
-            ...bodyInstructions
-        ]
-
-        return instructions
-    }
-
-    #compile(node: Node): Instruction[] {
-        const instructions: Instruction[] = []
-
-        if (node.type === NodeType.ExpressionStatement) {
-            instructions.push(...this.#compileExpression(node))
+        if (statement.else !== null) {
+            if (statement.else.type === "IfStatement") {
+                
+            } else {
+                else_.push(...this.#compileBlockStatement(statement.else))
+            }
         }
 
-        else if (node.type === NodeType.IfStatement) {
-            instructions.push(...this.#compileIfStatement(node))
-        }
-
-        return instructions
+        return [
+            ...this.#compileExpression(statement.test.expression),
+            { opcode: "POP_JUMP_FORWARD_IF_FALSE", operand: Operand.fromNumber(then.length + 1) },
+            ...then,
+            { opcode: "JUMP_FORWARD", operand: Operand.fromNumber(10) },
+            ...else_,
+        ] satisfies Instruction[]
     }
 
-    public compileProgram(): Instruction[] {
-        const instructions: Instruction[] = []
-        const nodes = this.#program.body.body
+    #compileStatement(statement: Statement): Instruction[] {
+        if (statement.type === "ExpressionStatement") {
+            return this.#compileExpression(statement.expression)
+        } else if (statement.type === "IfStatement") {
+            return this.#compileIfStatement(statement)
+        }
 
-        for (const node of nodes) {
-            instructions.push(...this.#compile(node))
+        throw new Error(`unknown statement ${statement.type}`)
+    }
+
+    public compile(): Instruction[] {
+        const instructions: Instruction[] = []
+
+        for (const statement of this.#program.body) {
+            instructions.push(...this.#compileStatement(statement))
         }
 
         return instructions
